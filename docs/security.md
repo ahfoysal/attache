@@ -1,6 +1,6 @@
 # Security and permissions
 
-Three things I assume are always true: the model can be manipulated by text it reads; I will over-trust the system once it works; and any credential reachable by a process can eventually be exfiltrated by that process. Design goal: **no single deception can cause irreversible harm.** Prompt injection may waste a task's budget; it must never be able to push code, spend money, or read my mail.
+Three standing assumptions: the model can be manipulated by text it reads; the operator will over-trust the system once it works; any credential reachable by a process can eventually be exfiltrated by that process. Design goal: **no single deception can cause irreversible harm.** Prompt injection may waste a task's budget; it must never be able to push code, spend money, or read mail.
 
 ## Risk tiers
 
@@ -9,7 +9,7 @@ Three things I assume are always true: the model can be manipulated by text it r
 | **T0 — auto** | No prompt, logged | Read files in workspace; allowlisted read-only commands; web reads from allowlisted domains; writing scratch/artifacts |
 | **T1 — workspace-scoped** | Auto only inside an approved workspace | Edit files; branches; local commits; package installs *inside containers*; project build/test commands |
 | **T2 — one-time consent** | First use per (action, scope) asks; remembered, revocable | Cloning a new external repo; a new network domain; installs outside containers; reads outside the workspace; long-lived processes |
-| **T3 — every time** | Explicit approval per action, read back to me | Push to any remote; open a PR; send any message; delete beyond workspace; anything touching credentials; sudo; purchase-adjacent steps |
+| **T3 — every time** | Explicit approval per action, read back before the yes | Push to any remote; open a PR; send any message; delete beyond workspace; anything touching credentials; sudo; purchase-adjacent steps |
 | **T4 — never** | Hard-blocked in the executor, not voice-overridable | Force-push shared branches; delete repos/infra; modify the policy engine, its config, or audit logs; read the secret store; disable the sandbox; financial transactions |
 
 Mapping the obvious actions: read files T0 (T2 outside workspace), edit T1, delete T1 inside / T3 beyond, shell T0–T3 by pattern, installs T1/T2, SSH access T2 per machine, GitHub credentials T3 per use, messages T3, purchases T4 for now, system settings T4, push/PR T3.
@@ -20,11 +20,11 @@ Mapping the obvious actions: read files T0 (T2 outside workspace), edit T1, dele
 2. **OS/container layer contains.** SDK sandbox locally, Docker/microVM for untrusted work, Unix users + cgroups + tailnet ACLs on remotes. If the policy layer is somehow talked around, the walls hold.
 3. **Credential layer limits blast radius.** Tools reference secrets by name; the executor resolves via the broker at spawn time into that one process env, and scrubs output. The agent never sees values in context. Fine-grained GitHub PATs scoped per purpose (read-only research vs push-capable), short expiries.
 
-## The attacks I'm designing for
+## Threat model
 
 | Attack | Defense |
 |---|---|
-| Prompt injection (pages, issues, READMEs instructing the agent) | Structural, not textual: research tasks run in containers holding zero credentials, egress allowlisted; outward actions stay T3 regardless of what the agent believes; instructions found in content get surfaced to me, quoted, never followed. Injected text can waste a budget — the design's job is making that *all* it can do |
+| Prompt injection (pages, issues, READMEs instructing the agent) | Structural, not textual: research tasks run in containers holding zero credentials, egress allowlisted; outward actions stay T3 regardless of what the agent believes; instructions found in content get surfaced to the user, quoted, never followed. Injected text can waste a budget — the design's job is making that *all* it can do |
 | Malicious repo (install scripts, hooks, build files) | Untrusted repo code never runs on the host: clone, install, build, test in the container tier only. `npm install` of a stranger's lockfile is code execution; treated as such |
 | Secret leakage | Absent from prompts and env by construction; output redaction before storage; distiller redaction before memory writes; periodic artifact scans for token patterns |
 | Destructive shell | Executor denylist evaluated on the parsed command (`rm -rf` outside workspace, `mkfs`, `dd` to devices, force-push, history rewrites), plus filesystem confinement so novel phrasings can't reach outside anyway |

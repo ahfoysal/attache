@@ -1,12 +1,12 @@
 # System design
 
-The detailed version of [architecture.md](architecture.md). Seven services, one database, one queue. Everything below the voice plane is a deliberately boring backend: the exotic parts (models, speech, agents) are all rented, so the parts I own should be dull and debuggable.
+The detailed version of [architecture.md](architecture.md). Seven services, one database, one queue. Everything below the voice plane is a deliberately boring backend: the exotic parts (models, speech, agents) are all rented, so the owned parts should be dull and debuggable.
 
 ## Components
 
 ```mermaid
 flowchart LR
-  subgraph EDGE["Edge (my phone)"]
+  subgraph EDGE["Edge (phone)"]
     APP["RN app<br/>hold-to-talk · transcript · approvals"]
   end
 
@@ -58,7 +58,7 @@ flowchart LR
 
 | Component | Runs on | Notes |
 |---|---|---|
-| App | My phone | Thin client; reaches the gateway over Tailscale only |
+| App | Phone | Thin client; reaches the gateway over Tailscale only |
 | Voice pipeline | Home-base machine | One Pipecat process, stateless, restart freely |
 | Gateway (router, tasks, sessions, memory, policy, notifier) | Home-base machine | One FastAPI process; these are modules, not microservices |
 | Postgres, Redis | Home base, docker compose | The only stateful infrastructure |
@@ -68,13 +68,13 @@ flowchart LR
 
 Two OS processes (voice, gateway) plus compose. The module seams below matter; network boundaries between them don't, yet.
 
-## API boundaries I'm keeping sacred
+## API boundaries
 
-Even inside a monolith, because they become network boundaries later:
+Held stable even inside the monolith, because they become network boundaries later:
 
 - **App/voice ↔ gateway**: `POST /v1/turns` (final transcript in, `{speak, action_taken, task_ref}` out) plus a websocket for proactive announcements. The voice side knows nothing about tasks.
 - **Gateway ↔ runners**: `start(task_spec)` / `send(session_id, message)` / `interrupt` / `status`. A runner knows nothing about voice, memory or other tasks.
-- **Runner ↔ agent**: the Agent SDK boundary. The runner passes prompt, workspace, MCP servers and a `can_use_tool` policy callback; it gets back a structured message stream. The agent also gets a `taskboard` MCP server (`report_progress`, `request_approval`, `save_artifact`, `remember`, `complete`) — that's how agent work becomes user-visible state, instead of me parsing prose.
+- **Runner ↔ agent**: the Agent SDK boundary. The runner passes prompt, workspace, MCP servers and a `can_use_tool` policy callback; it gets back a structured message stream. The agent also gets a `taskboard` MCP server (`report_progress`, `request_approval`, `save_artifact`, `remember`, `complete`) — that's how agent work becomes user-visible state, instead of parsing prose out of transcripts.
 - **Everything → events**: every state change is an append-only `task_events` row plus a Redis publish. App badges, spoken briefings and "what are you working on?" all read the same stream.
 
 ## Sequence: a simple question
@@ -84,7 +84,7 @@ Must feel instant, never touches an agent.
 ```mermaid
 sequenceDiagram
   autonumber
-  participant U as Me
+  participant U as User
   participant V as Voice pipeline
   participant G as Gateway
   participant T as Task store
@@ -103,7 +103,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   autonumber
-  participant U as Me
+  participant U as User
   participant V as Voice pipeline
   participant G as Gateway
   participant R as Runner
@@ -118,7 +118,7 @@ sequenceDiagram
   A->>R: report_progress("shortlisted 12 repos")
   A->>R: save_artifact(report.md) + spoken summary
   R->>G: state → completed
-  G->>V: announce if I'm around, else push
+  G->>V: announce if user present, else push
   V->>U: "Three matches. Best is X — beginner-friendly issues, active maintainers. Clone it?"
   U->>V: "Yes, set it up"
   V->>G: follow-up turn

@@ -1,8 +1,8 @@
 # Agent sessions
 
-The heart of the design, so I wrote out the options before picking.
+The heart of the design. Options first, then the pick.
 
-## The options
+## Options
 
 | Approach | Verdict | Why |
 |---|---|---|
@@ -11,13 +11,13 @@ The heart of the design, so I wrote out the options before picking.
 | One session per project | As a memory scope, yes; as a session, no | A project session accumulates the same pollution as a god-session, just slower. Project knowledge flows through notes files, not shared context |
 | Parent assistant delegating to child agents | The shape yes, as LLM sessions no | The "parent" is the orchestrator *service* plus the stateless router — deterministic code, not a long-lived model session that can drift. Within a task, SDK subagents are fair game |
 | Stateless calls + reconstructed context | Not as primary | Reconstruction loses implicit working state; an agent mid-refactor knows things nobody wrote down. Kept as disaster recovery: any task can cold-restart from its record and artifacts |
-| Persistent sessions in tmux | No | Scraping a TUI gives me strings where the SDK gives structured messages, tool hooks and a real permission callback. tmux keeps one narrow job: supervising interactive processes an agent needs to watch |
+| Persistent sessions in tmux | No | Scraping a TUI yields strings where the SDK gives structured messages, tool hooks and a real permission callback. tmux keeps one narrow job: supervising interactive processes an agent needs to watch |
 
 ## The mechanism
 
-The Claude Agent SDK persists every session as a resumable transcript with a stable id; passing `resume` restores full working context, and forking branches a what-if without contaminating the original. So my session manager is mostly a registry table mapping `task → (session_id, runner, workspace, machine, status, summary)` plus lifecycle code. The hard state problem is already solved by the SDK; I'm not rebuilding it.
+The Claude Agent SDK persists every session as a resumable transcript with a stable id; passing `resume` restores full working context, and forking branches a what-if without contaminating the original. The session manager is therefore mostly a registry table mapping `task → (session_id, runner, workspace, machine, status, summary)` plus lifecycle code. The hard state problem is already solved by the SDK; not worth rebuilding.
 
-House rules:
+Rules:
 
 - One *active* session per task; follow-ups route into it. If a task's direction changes fundamentally, it gets a fresh session seeded from the stored summary instead of dragging a confused transcript forward.
 - Sessions are pinned to the machine and workspace where they started. A session resumed against a different filesystem is dangerously wrong. "Continue it on my server" is an explicit *migration*: summarize state, sync the repo, fresh session on the target seeded with the summary. (The SDK's session-store adapter can do true cross-host resume; the summary-and-restart version is simpler and usually enough.)

@@ -1,14 +1,14 @@
 # Architecture
 
-The shape of the thing, kept short. The deep cuts live in the other docs — [system-design.md](system-design.md) for components and sequences, [data-model.md](data-model.md) for schemas, [code-sketches.md](code-sketches.md) for the spine in pseudocode.
+The shape of the system. Deep cuts: [system-design.md](system-design.md) for components and sequences, [data-model.md](data-model.md) for schemas, [code-sketches.md](code-sketches.md) for pseudocode.
 
 ## Two loops
 
-The core realization: this is two systems with opposite needs glued together.
+Two subsystems with opposite requirements, glued at a narrow seam.
 
-The **voice loop** has to answer in about a second, be interruptible, and lose nothing important if it crashes. The **agent loop** runs for minutes or hours, has to survive reboots, and needs an audit trail more than it needs speed.
+The **voice loop** must answer in about a second, be interruptible, and lose nothing important on crash. The **agent loop** runs for minutes or hours, must survive reboots, and needs an audit trail more than speed.
 
-They meet in exactly two places: a task store (Postgres) and an event stream (Redis feeding websockets). The voice side never runs work, it only creates, steers and narrates tasks. The agents never talk to the user, they emit structured progress events that the voice side turns into speech or a push notification.
+They meet in exactly two places: a task store (Postgres) and an event stream (Redis feeding websockets). The voice side never runs work — it creates, steers and narrates tasks. Agents never talk to the user — they emit structured progress events that become speech or push notifications.
 
 ```mermaid
 flowchart LR
@@ -20,23 +20,23 @@ flowchart LR
   RD -->|updates, briefings| APP
 ```
 
-## The pieces
+## Components
 
-**The app** is the only client for now. Push-to-talk button, live transcript, task list, approval prompts, and playback of spoken replies. Audio streams to the gateway over a websocket; the phone reaches the gateway over Tailscale, never the open internet. Push notifications carry the "task finished" and "needs your ok" moments so the app doesn't have to stay open.
+**App** — the only client for now. Push-to-talk, live transcript, task list, approval prompts, playback of spoken replies. Audio streams to the gateway over a websocket; the phone reaches the gateway over Tailscale only. Push notifications carry "task finished" and "needs approval" so the app doesn't have to stay open.
 
-**The gateway** is one FastAPI process on my home machine. Inside it: a router (a fast model with a handful of tools — answer, create task, continue task, status, cancel), the task state machine, a memory service, a policy engine, and a notifier. These are modules, not microservices. The seams matter, the network boundaries don't yet.
+**Gateway** — one FastAPI process on the home machine. Modules: router (fast model with a handful of tools — answer, create task, continue task, status, cancel), task state machine, memory service, policy engine, notifier. Modules, not microservices. The seams matter; the network boundaries don't yet.
 
-**The runners** wrap the Claude Agent SDK. One session per task, resumable, pinned to the workspace it started in. Agents get an MCP toolset for reporting progress, saving artifacts, requesting approvals and writing their own two-sentence spoken summary at the end. That last one matters: the thing you hear was written by the agent that did the work, not reconstructed later from logs.
+**Runners** — wrap the Claude Agent SDK. One session per task, resumable, pinned to its workspace. Agents get an MCP toolset for progress reports, artifacts, approval requests, and writing a two-sentence spoken summary at close. The summary the user hears is written by the agent that did the work, not reconstructed from logs.
 
-**Speech** is a cascade: streaming STT in, fast model, streaming TTS out. Server-side, so the app stays thin and the vendors stay swappable. Realtime speech-to-speech APIs sound great but cost too much for something idle 95% of the day, and I'd lose the ability to pick my own brain model.
+**Speech** — a cascade: streaming STT in, fast model, streaming TTS out. Server-side, so the app stays thin and vendors stay swappable. Realtime speech-to-speech APIs cost too much for a system idle 95% of the day and lock the brain model; ruled out for now.
 
-## Rules I'm not breaking
+## Invariants
 
-A few lines I've decided are load-bearing, so they're written down where I can't quietly ignore them:
+Written down so they don't erode:
 
-1. One agent session per task. No god-session that slowly accumulates confusion.
-2. Every state change is an append-only event. The dashboard, the notifications and "what are you working on?" all read the same stream.
-3. Approvals are database rows with expiry, not popups. Pushing code, messaging anyone, spending money: approval required, every time, no matter how much I trust it this week.
-4. Untrusted code (other people's repos) runs in containers holding zero credentials. Prompt injection will happen; the design's job is to make it boring.
-5. The assistant can never edit its own policy rules. Config lives outside every workspace it can touch.
-6. Nothing listens on a public interface. Ever.
+1. One agent session per task. No shared long-lived session.
+2. Every state change is an append-only event. Dashboard, notifications and status queries read the same stream.
+3. Approvals are database rows with expiry. Pushing code, messaging anyone, spending money: approval required every time, regardless of accumulated trust.
+4. Untrusted code (other people's repos) runs in containers holding zero credentials. Prompt injection is assumed; the design's job is to make it boring.
+5. The assistant cannot edit its own policy rules. Policy config lives outside every workspace it can touch.
+6. Nothing listens on a public interface.

@@ -1,61 +1,61 @@
 # Attaché
 
-A voice assistant that does real work.
+Voice assistant that runs real work through coding agents.
 
-**Status: beta planning.** There's no code here yet. This repo is me thinking in public before committing to an architecture, so expect the docs to change often and without ceremony.
+Status: **beta planning**. No code yet. Docs change often.
 
-## The itch
+## Problem
 
-Siri can set a timer. What I actually want is to say *"find me an open source project worth contributing to"* from my phone while I'm out, and an hour later get a short voice briefing with the full report waiting in the app. The heavy lifting (research, cloning, running tests, poking at servers) should happen on my own machines through coding agents, not inside a chat window.
+Siri-class assistants stop at timers and lookups. Target use case: say *"find an open source project worth contributing to"* from the phone, get a short voice briefing later, full report waiting in the app. Research, cloning, tests and server work run on owned machines through coding agents — not inside a chat window.
 
-So: a phone app for talking, a small control plane on my home machine for thinking, and agent sessions for doing. Basically a chief of staff for AI labor.
+Three parts: a phone app for voice, a control plane on a home machine, agent sessions for execution.
 
-## How it works, in one breath
+## How it works
 
-You talk to the app. A fast model decides whether you asked a question or handed over a job. Questions get answered in about a second. Jobs become tasks: durable things with state, logs, budgets and artifacts, executed by a coding-agent session inside a sandboxed workspace. When a task finishes or needs a yes/no, the app pings you and can read the summary out loud. Anything risky, like pushing code or sending messages, waits for explicit approval every single time.
+Speech goes to the app. A fast model classifies the request: question or job. Questions get answered in about a second. Jobs become tasks — durable records with state, logs, budgets and artifacts — executed by a coding-agent session in a sandboxed workspace. On completion or when a decision is needed, the app gets a push and can read the summary aloud. Risky actions (pushing code, sending messages, spending money) always wait for explicit approval.
 
-Longer version in [docs/architecture.md](docs/architecture.md).
+Details: [docs/architecture.md](docs/architecture.md).
 
-## Why mobile first
+## Mobile first
 
-An earlier draft of this plan started with a desktop push-to-talk client. Wrong order. The whole point is being away from the keyboard; if I'm at my desk I'll just type in the terminal. The phone is where a voice assistant earns its keep, and it brings push notifications, mic access and background audio for free.
+The first draft had a desktop push-to-talk client. Dropped. The value of a voice assistant shows up away from the keyboard; at a desk, a terminal is faster. The phone also brings push notifications, mic access and background audio for free.
 
-So the MVP is a React Native app and nothing else. No desktop client, no wake word, no smart speaker. If the app proves that I actually reach for this every day, IoT satellites around the house come later. That part is dessert.
+MVP = a React Native app and nothing else. No desktop client, no wake word, no smart speaker. IoT satellites come only after the app proves daily use.
 
-## Roadmap at a glance
+## Roadmap
 
-| Phase | What | Status |
+| Phase | Scope | Status |
 |---|---|---|
 | 0 | Text-only proof: request → task → agent → notification | planning |
 | 1 | Mobile MVP: app, push-to-talk, one agent, approvals | planning |
 | 2 | Remote machines over SSH | later |
-| 3 | Memory that survives weeks | later |
+| 3 | Durable memory | later |
 | 4 | More agent runtimes, parallel tasks | later |
-| 5 | IoT: wake-word satellites in rooms | someday |
+| 5 | IoT wake-word satellites | future |
 
-Details in [docs/roadmap.md](docs/roadmap.md), MVP scope in [docs/mvp.md](docs/mvp.md), choices I've already made (and why) in [docs/decisions.md](docs/decisions.md).
+Details: [docs/roadmap.md](docs/roadmap.md) · MVP scope: [docs/mvp.md](docs/mvp.md) · settled choices: [docs/decisions.md](docs/decisions.md)
 
-## The full plan
+## Full plan
 
-Start with [architecture.md](docs/architecture.md) for the shape, then go as deep as you like:
+Start with [architecture.md](docs/architecture.md), then:
 
-- [prior-art.md](docs/prior-art.md) — what already exists, what it solves, why I'm still building this
+- [prior-art.md](docs/prior-art.md) — existing projects, what they cover, gaps
 - [system-design.md](docs/system-design.md) — components, boundaries, sequence diagrams
-- [voice.md](docs/voice.md) — the speech pipeline, latency budget, intent routing
-- [sessions.md](docs/sessions.md) — one agent session per task, and how "continue yesterday's thing" resolves
-- [memory.md](docs/memory.md) — layered memory, retrieval, correction, forgetting
-- [task-engine.md](docs/task-engine.md) — the state machine, approvals, budgets, why not Temporal
-- [execution.md](docs/execution.md) — local sandboxes, SSH remotes, the isolation ladder
-- [security.md](docs/security.md) — risk tiers, the attacks I'm designing for, secrets
-- [data-model.md](docs/data-model.md) — the fifteen tables, with DDL
-- [stack.md](docs/stack.md) — every pick with its trade-off, cost estimates, build-vs-buy
-- [code-sketches.md](docs/code-sketches.md) — pseudocode for the spine, planned repo layout
-- [risks.md](docs/risks.md) — what's easy, what's hard, what current models can't be trusted with
+- [voice.md](docs/voice.md) — speech pipeline, latency budget, intent routing
+- [sessions.md](docs/sessions.md) — session-per-task model, resume, reference resolution
+- [memory.md](docs/memory.md) — memory layers, retrieval, correction, deletion
+- [task-engine.md](docs/task-engine.md) — state machine, approvals, budgets
+- [execution.md](docs/execution.md) — sandboxes, SSH remotes, isolation ladder
+- [security.md](docs/security.md) — risk tiers, threat model, secrets
+- [data-model.md](docs/data-model.md) — tables and DDL
+- [stack.md](docs/stack.md) — technology picks, costs, build-vs-buy
+- [code-sketches.md](docs/code-sketches.md) — pseudocode for the core paths
+- [risks.md](docs/risks.md) — what's easy, what's hard, what models can't be trusted with
 
-## The stack I'm betting on
+## Stack, short version
 
-Python for the control plane (FastAPI, Postgres, Redis), the Claude Agent SDK for the workers, React Native with Expo for the app, Tailscale so nothing ever listens on a public port. Short version of the reasoning: the voice tooling lives in Python, my UI muscle memory lives in React, and I refuse to expose a public server for something that can push code to my repos.
+Python control plane (FastAPI, Postgres, Redis), Claude Agent SDK for workers, React Native + Expo for the app, Tailscale for networking. Nothing listens on a public interface.
 
-## Following along
+## Feedback
 
-It's early. Issues and discussions are open if you have opinions, especially if you've built voice pipelines or run agent fleets and have scars to share.
+Issues and discussions are open. Especially useful: experience with voice pipelines or agent fleets in daily use.

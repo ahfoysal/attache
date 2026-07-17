@@ -1,19 +1,19 @@
 # Decisions
 
-Choices I've already made, with the reasoning, so future me stops relitigating them. Reversible if reality disagrees.
+Settled choices with reasons. Revisit only with new information.
 
-**React Native over Flutter.** I live in React and TypeScript; Flutter would mean learning Dart to build what is, honestly, four screens and a websocket. Expo covers mic capture, background audio and push notifications well enough, and if I ever hit a native audio wall there's the bare-workflow escape hatch. Flutter's rendering advantages buy me nothing here.
+**React Native over Flutter.** Existing React/TS experience; the app is four screens and a websocket, so Dart buys nothing. Expo covers mic capture, background audio and push notifications; the bare workflow is the escape hatch if native audio gets in the way. Flutter's rendering advantages are irrelevant here.
 
-**Mobile before desktop, phone before wake word.** The value shows up away from the keyboard. Also, hold-to-talk on a phone sidesteps the two hardest voice problems (wake-word accuracy and knowing when you've finished speaking) until the rest of the system deserves the effort.
+**Mobile before desktop, phone before wake word.** The value shows up away from the keyboard. Hold-to-talk on a phone also sidesteps the two hardest voice problems — wake-word accuracy and end-of-speech detection — until the rest of the system deserves that effort.
 
-**Cascade (STT → model → TTS) over realtime speech-to-speech APIs.** Cheaper by a lot for something idle most of the day, debuggable as text, and I keep free choice of the reasoning model. The realtime APIs can slot in later as a premium conversation mode if the latency ever feels bad.
+**Cascade (STT → model → TTS) over realtime speech-to-speech APIs.** Far cheaper for a system idle most of the day, debuggable as text, and keeps the reasoning model swappable. Realtime APIs can be added later as a premium conversation mode.
 
-**One agent session per task.** Isolation matches how tasks actually behave. Yesterday's server debugging should never bleed into today's research. Cross-task continuity flows through the task records and memory, where I can read and correct it, not through a shared context window I can't see into.
+**One agent session per task.** Task isolation matches how work actually behaves; one task's debugging must never bleed into another's research. Cross-task continuity flows through task records and memory — readable and correctable — not through a shared context window.
 
-**A custom task state machine over Temporal or similar.** The durable-resume problem is mostly solved by the agent SDK's session files; what's left is a few hundred lines of state transitions on Postgres that I'll fully understand at 2am. Workflow engines are the right answer to a problem I don't have yet.
+**Custom task state machine over Temporal and friends.** Durable resume is already provided by the agent SDK's session files. What remains is a few hundred lines of state transitions on Postgres, fully understandable at 2am. Workflow engines solve a problem this system doesn't have yet; DBOS then Temporal is the graduation path if that changes.
 
-**Python core, React Native shell.** Splitting languages is a real cost, but the voice tooling and the strongest pipeline libraries are Python-first, and the app side is thin. Two processes, one language each, is a shape I already run in other projects.
+**Python core, React Native shell.** Two languages is a real cost, but the voice tooling and strongest pipeline libraries are Python-first and the app side is thin. Two processes, one language each.
 
-**Approvals for anything outward, forever.** Pushing code, opening PRs, messaging humans, spending money: confirmed every time, even after the system feels trustworthy. One bad autonomous action costs more trust than a thousand confirmations. This one is not up for revision.
+**Approvals for anything outward, permanently.** Pushing code, opening PRs, messaging humans, spending money: confirmed every time, even after the system feels trustworthy. One bad autonomous action costs more trust than a thousand confirmations. Not up for revision.
 
-**Nothing public-facing.** The gateway and runners live on a private tailnet only. Tens of thousands of exposed personal-assistant gateways got catalogued by scanners this year; not joining them.
+**Nothing public-facing.** Gateway and runners exist only on a private tailnet. Scanners catalogued tens of thousands of exposed personal-assistant gateways this year; not joining them.
