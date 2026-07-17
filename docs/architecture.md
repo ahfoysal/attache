@@ -1,6 +1,6 @@
 # Architecture
 
-High level on purpose. Numbers, schemas and code sketches live in my working notes; this is the shape of the thing, which is the part I want feedback on.
+The shape of the thing, kept short. The deep cuts live in the other docs — [system-design.md](system-design.md) for components and sequences, [data-model.md](data-model.md) for schemas, [code-sketches.md](code-sketches.md) for the spine in pseudocode.
 
 ## Two loops
 

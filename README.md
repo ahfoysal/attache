@@ -35,6 +35,23 @@ So the MVP is a React Native app and nothing else. No desktop client, no wake wo
 
 Details in [docs/roadmap.md](docs/roadmap.md), MVP scope in [docs/mvp.md](docs/mvp.md), choices I've already made (and why) in [docs/decisions.md](docs/decisions.md).
 
+## The full plan
+
+Start with [architecture.md](docs/architecture.md) for the shape, then go as deep as you like:
+
+- [prior-art.md](docs/prior-art.md) — what already exists, what it solves, why I'm still building this
+- [system-design.md](docs/system-design.md) — components, boundaries, sequence diagrams
+- [voice.md](docs/voice.md) — the speech pipeline, latency budget, intent routing
+- [sessions.md](docs/sessions.md) — one agent session per task, and how "continue yesterday's thing" resolves
+- [memory.md](docs/memory.md) — layered memory, retrieval, correction, forgetting
+- [task-engine.md](docs/task-engine.md) — the state machine, approvals, budgets, why not Temporal
+- [execution.md](docs/execution.md) — local sandboxes, SSH remotes, the isolation ladder
+- [security.md](docs/security.md) — risk tiers, the attacks I'm designing for, secrets
+- [data-model.md](docs/data-model.md) — the fifteen tables, with DDL
+- [stack.md](docs/stack.md) — every pick with its trade-off, cost estimates, build-vs-buy
+- [code-sketches.md](docs/code-sketches.md) — pseudocode for the spine, planned repo layout
+- [risks.md](docs/risks.md) — what's easy, what's hard, what current models can't be trusted with
+
 ## The stack I'm betting on
 
 Python for the control plane (FastAPI, Postgres, Redis), the Claude Agent SDK for the workers, React Native with Expo for the app, Tailscale so nothing ever listens on a public port. Short version of the reasoning: the voice tooling lives in Python, my UI muscle memory lives in React, and I refuse to expose a public server for something that can push code to my repos.
