@@ -1,10 +1,14 @@
 """ClaudeCliRouter — smart routing on the Claude subscription (no API key, no cash).
 
-Selected when ATTACHE_ROUTER=claude. Runs the same free path as the agent: the
-Agent SDK's query() authenticates via the logged-in `claude` CLI, so routing
-costs no money — it draws a little subscription allowance per turn. Uses
-constrained structured output, so the routing decision is always schema-valid.
-No tools are allowed (allowed_tools=[]) — it's a pure classifier, one turn.
+Selected when ATTACHE_ROUTER=claude. Routes via the Agent SDK / claude CLI using
+constrained structured output — same free subscription path as the agent.
+
+Each route() is a fresh, self-contained query(): it connects, classifies, and
+disconnects. We deliberately do NOT hold a persistent session — a long-lived
+router session contends with the agent's own Claude sessions on the same
+subscription and can stall them. Since obvious task/status/cancel turns are
+handled instantly upstream (fast_route), the router is only hit for genuine
+conversation, where a per-call cold start is acceptable.
 """
 
 from __future__ import annotations
@@ -51,16 +55,17 @@ class ClaudeCliRouter(Router):
     async def route(self, text: str, ctx) -> Decision:
         from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
-        system = f"{SYSTEM}\n\n{_context_block(ctx)}\n\n{INSTRUCTION}"
+        system = f"{SYSTEM}\n\n{INSTRUCTION}"
         options = ClaudeAgentOptions(
             model=settings.claude_router_model,
             system_prompt=system,
-            max_turns=4,  # headroom: the model may reason before emitting the JSON
-            allowed_tools=[],  # pure classifier — no tool use, so still bounded
+            max_turns=4,          # headroom: model may reason before emitting JSON
+            allowed_tools=[],     # pure classifier — no tools, still bounded
             output_format={"type": "json_schema", "schema": DECISION_SCHEMA},
         )
+        prompt = f"{_context_block(ctx)}\n\nUser message: {text}"
         data = None
-        async for msg in query(prompt=text, options=options):
+        async for msg in query(prompt=prompt, options=options):
             if isinstance(msg, ResultMessage):
                 data = msg.structured_output
         if not isinstance(data, dict) or "action" not in data:

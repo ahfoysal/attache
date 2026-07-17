@@ -131,11 +131,17 @@ async def handle_turn(body: TurnIn, request: Request) -> dict:
     decision = fastpath(body.text)
     if decision is None:
         turn_ctx = await ctx.memory.recall_for_turn(body.text, ctx.engine)
-        try:
-            decision = await ctx.router.route(body.text, turn_ctx)
-        except Exception:
-            log.exception("router failed; falling back to heuristic")
-            decision = await _fallback_router.route(body.text, turn_ctx)
+        # Instant lane: obvious task/continue requests skip the LLM round-trip
+        # (the agent enriches the goal itself, so nothing is lost).
+        quick = await _fallback_router.route(body.text, turn_ctx)
+        if settings.fast_route and quick.action in ("create_task", "continue_task"):
+            decision = quick
+        else:
+            try:
+                decision = await ctx.router.route(body.text, turn_ctx)
+            except Exception:
+                log.exception("router failed; using heuristic result")
+                decision = quick
 
     result = await _dispatch(ctx, decision, convo, body.text)
     await _append_turn(ctx, convo["id"], "assistant", result["speak"],

@@ -75,14 +75,37 @@ class AppContext:
         self.dispatcher = Dispatcher(self.engine, self.runner)
         self.notifier = Notifier(self.db, self.bus, self.engine)
 
+        # Reconcile: a fresh process means any task still 'running'/'planning'
+        # was orphaned by the previous process — no runner is working it now.
+        await self.db.execute(
+            "update tasks set state = 'failed', "
+            "blocked_reason = 'interrupted (gateway restarted)', last_activity_at = now() "
+            "where state in ('running', 'planning')"
+        )
+
         log.info(
             "Attaché up — agent=%s router=%s", self.settings.agent, self.settings.router
         )
         if run_background:
             self._bg.append(asyncio.create_task(self.dispatcher.run_loop()))
             self._bg.append(asyncio.create_task(self.notifier.run()))
+            # Warm a reusable router client so the first turn isn't a cold start.
+            if hasattr(self.router, "warmup"):
+                self._bg.append(asyncio.create_task(self._warmup_router()))
+
+    async def _warmup_router(self) -> None:
+        try:
+            await self.router.warmup()
+            log.info("router warmed")
+        except Exception:
+            log.warning("router warmup failed (will warm on first turn)", exc_info=True)
 
     async def shutdown(self) -> None:
+        if hasattr(self.router, "aclose"):
+            try:
+                await self.router.aclose()
+            except Exception:
+                pass
         for task in self._bg:
             task.cancel()
         for task in self._bg:

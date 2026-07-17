@@ -145,6 +145,7 @@ async function submitTurn(){
   if(!text) return;
   $('#send').disabled = true;
   addTurn('u', text); input.value='';
+  $('#reply').textContent = '…';   // immediate feedback while routing
   try{
     const r = await (await fetch('/v1/turns',{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({text, conversation_id:convo})})).json();
@@ -161,11 +162,14 @@ $('#turn-form').addEventListener('submit', e => { e.preventDefault(); submitTurn
 async function refreshTasks(){
   try{
     const {tasks} = await (await fetch('/v1/tasks')).json();
+    const running = new Set(['running','planning','created']);
     $('#tasks').innerHTML = tasks.length ? tasks.map(t => `
-      <div class="task" onclick="viewTask('${t.id}')">
+      <div class="task" data-task="${t.id}" onclick="viewTask('${t.id}')">
         <span class="t">${esc(t.title)}</span>
         <span class="pill s-${t.state}">${t.state}</span>
-        ${t.spoken_summary ? `<div class="sum">${esc(t.spoken_summary)}</div>` : ''}
+        ${running.has(t.state)
+          ? `<div class="sum live">${activity[t.id] ? '⚙️ '+esc(activity[t.id]) : 'starting…'}</div>`
+          : (t.spoken_summary ? `<div class="sum">${esc(t.spoken_summary)}</div>` : '')}
       </div>`).join('') : '<div class="sum" style="color:var(--soft)">No tasks yet.</div>';
   }catch(e){}
 }
@@ -175,18 +179,41 @@ async function viewTask(id){
   alert(`${d.task.title} [${d.task.state}]\n\n${d.task.spoken_summary||''}\n\n--- events ---\n${evs}`);
 }
 
-// ---- Live events: update the board, and speak the completion out loud ----
-function logEvent(ev){
-  const box = $('#events');
-  const line = document.createElement('div');
+// ---- Live events: the agent's activity stream, spoken completions ----
+const activity = {};  // task_id -> latest activity line (for the task card)
+
+function eventLine(ev){
   const p = ev.payload || {};
-  const detail = p.msg || p.to || p.name || p.spoken || '';
-  line.innerHTML = `<b>${ev.type}</b> ${esc(String(detail))}`;
-  box.prepend(line);
+  switch(ev.type){
+    case 'thinking':        return ['🤔','thinking', p.text, true];
+    case 'activity':        return ['⚙️','', p.summary, false];
+    case 'activity_result': return ['↳','', p.preview, true];
+    case 'assistant':       return ['💬','', p.text, false];
+    case 'progress':        return ['•','', p.msg, false];
+    case 'plan':            return ['🧭','plan', (p.steps||[]).join(' → '), true];
+    case 'state_change':    return ['▸','', p.to, true];
+    case 'artifact':        return ['📄','', p.name, false];
+    case 'notification':    return ['🔔','', p.spoken, false];
+    case 'approval_requested': return ['✋','approval', p.action, false];
+    default:                return ['·', ev.type, '', true];
+  }
+}
+
+function logEvent(ev){
+  const p = ev.payload || {};
+  const [icon,label,text,dim] = eventLine(ev);
+  const line = document.createElement('div');
+  if (dim) line.style.opacity = '0.65';
+  line.innerHTML = `${icon} ${label?`<b>${label}</b> `:''}${esc(String(text||''))}`;
+  $('#events').prepend(line);
+
+  if (ev.task_id && ['thinking','activity','progress','assistant'].includes(ev.type)){
+    activity[ev.task_id] = (ev.type==='thinking'?'thinking… ':'') + String(text||'');
+    const el = document.querySelector('.task[data-task="'+ev.task_id+'"] .live');
+    if (el) el.textContent = '⚙️ ' + activity[ev.task_id];
+  }
   if (ev.type === 'notification' && p.spoken){
-    $('#reply').textContent = p.spoken;
-    addTurn('a', p.spoken);
-    speak(p.spoken);                 // the "your task is done" moment, spoken aloud
+    $('#reply').textContent = p.spoken; addTurn('a', p.spoken); speak(p.spoken);
   }
   if (['state_change','notification','artifact'].includes(ev.type)) refreshTasks();
 }

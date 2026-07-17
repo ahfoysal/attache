@@ -24,7 +24,12 @@ class Settings(BaseSettings):
     # Backend selection. The "scripted"/"heuristic" pair runs with no API key;
     # "claude"/"llm" need ANTHROPIC_API_KEY and the [claude] extra.
     agent: str = "scripted"       # scripted | claude
-    router: str = "heuristic"     # heuristic | llm
+    router: str = "heuristic"     # heuristic | claude | openai | llm
+
+    # Instant keyword routing for obvious task/status/cancel requests, so only
+    # genuine conversation pays the smart router's latency. Set false to send
+    # every turn through the smart router.
+    fast_route: bool = True
 
     # agent_model drives the Agent SDK via the claude CLI (aliases resolve to
     # the latest; verified with "haiku"). router_model is used only by the

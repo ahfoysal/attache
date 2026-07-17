@@ -49,6 +49,45 @@ def _compose_prompt(task: dict) -> str:
     return "\n".join(parts)
 
 
+def _summarize_tool(name: str, inp: dict) -> str | None:
+    """A short human line for what a tool call is doing. None = don't show."""
+    inp = inp or {}
+    if name.startswith("mcp__taskboard__"):
+        return None  # our own control channel; the taskboard events already cover it
+    f = inp.get("file_path") or inp.get("path") or "a file"
+    match name:
+        case "Read" | "NotebookRead":
+            return f"Reading {f}"
+        case "Write":
+            return f"Writing {f}"
+        case "Edit" | "MultiEdit" | "NotebookEdit":
+            return f"Editing {f}"
+        case "Bash":
+            return f"Running: {(inp.get('command', '') or '')[:100]}"
+        case "Grep":
+            return f"Searching for “{inp.get('pattern', '')}”"
+        case "Glob":
+            return f"Finding files: {inp.get('pattern', '')}"
+        case "WebSearch":
+            return f"Searching the web: {inp.get('query', '')}"
+        case "WebFetch":
+            return f"Fetching {inp.get('url', '')}"
+        case "TodoWrite":
+            return "Updating its plan"
+        case _:
+            return name
+
+
+def _preview(content) -> str:
+    """A short one-line preview of a tool result."""
+    if isinstance(content, list):
+        parts = []
+        for c in content:
+            parts.append(str(c.get("text", "")) if isinstance(c, dict) else str(c))
+        content = " ".join(parts)
+    return str(content).strip().replace("\n", " ")[:140]
+
+
 class ClaudeAgentRunner(AgentRunner):
     name = "claude"
 
@@ -134,6 +173,31 @@ class ClaudeAgentRunner(AgentRunner):
 
         return can_use_tool
 
+    async def _emit_block(self, tid: str, block, final_text: list[str]) -> None:
+        """Stream one message block to the live event feed as agent activity."""
+        bt = type(block).__name__
+        if bt == "TextBlock":
+            text = (getattr(block, "text", "") or "").strip()
+            if text:
+                final_text.append(text)
+                await self.engine.append_event(tid, "assistant", {"text": text[:800]})
+        elif bt == "ThinkingBlock":
+            think = (getattr(block, "thinking", "") or "").strip()
+            if think:
+                await self.engine.append_event(tid, "thinking", {"text": think[:600]})
+        elif bt in ("ToolUseBlock", "ServerToolUseBlock"):
+            name = getattr(block, "name", "") or ""
+            summary = _summarize_tool(name, getattr(block, "input", {}) or {})
+            if summary:
+                await self.engine.append_event(tid, "activity", {"tool": name, "summary": summary})
+        elif bt == "ToolResultBlock":
+            preview = _preview(getattr(block, "content", ""))
+            if preview and preview not in ("ok", "completed", "saved", "remembered"):
+                await self.engine.append_event(
+                    tid, "activity_result",
+                    {"ok": not getattr(block, "is_error", False), "preview": preview},
+                )
+
     async def _audit(self, task_id, tool_name, tool_input, verdict) -> None:
         await self.db.execute(
             """insert into tool_calls (task_id, tool, input_digest, policy_decision)
@@ -184,9 +248,7 @@ class ClaudeAgentRunner(AgentRunner):
                     external_session_id = getattr(msg, "session_id", external_session_id)
                     cost = getattr(msg, "total_cost_usd", None) or cost
                     for block in getattr(msg, "content", []) or []:
-                        text = getattr(block, "text", None)
-                        if text:
-                            final_text.append(text)
+                        await self._emit_block(tid, block, final_text)
         except Exception as exc:  # surface the failure honestly, don't fake success
             await self.tb.fail(tid, f"agent error: {exc}")
             await self._close_session(session_row["id"], external_session_id, cost, "abandoned")
