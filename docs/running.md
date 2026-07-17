@@ -77,8 +77,16 @@ Smoke-test it directly:
 uv run python scripts/smoke_agent.py    # runs one real, budget-capped task (~$0.20)
 ```
 
-The **LLM router** (`ATTACHE_ROUTER=llm`) is separate: it uses the anthropic API
-and does need `ANTHROPIC_API_KEY`. The heuristic router works without one.
+## Routers
+
+- `heuristic` (default) — keyword-based, free, no key. Recognises task verbs
+  (research/find/build/fix…); plain chat gets a canned reply.
+- `llm` — the anthropic API (`ANTHROPIC_API_KEY`), for smart routing.
+- `openai` — an OpenAI model (`OPENAI_API_KEY` + `uv sync --extra openai`).
+  Cheap (fractions of a cent/turn); keeps Claude as the free agent. Set
+  `ATTACHE_ROUTER=openai`. Verify with `uv run python scripts/smoke_router.py`.
+
+The agent stays Claude regardless — routing and reasoning are separate choices.
 
 Note on cost: each agent task is its own SDK session with meaningful fixed
 overhead (~$0.20 even for a tiny task), so per-task budget caps matter.

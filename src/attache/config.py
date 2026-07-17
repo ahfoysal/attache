@@ -5,7 +5,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load .env into the process environment so provider SDKs (OpenAI, Anthropic)
+# see their keys. pydantic reads ATTACHE_-prefixed settings separately below.
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -26,6 +31,7 @@ class Settings(BaseSettings):
     # anthropic API path, which needs an exact id.
     router_model: str = "claude-haiku-4-5"
     agent_model: str = "sonnet"
+    openai_router_model: str = "gpt-4o-mini"
 
     workspace_root: str = "~/.attache/workspaces"
     artifact_root: str = "~/.attache/artifacts"

@@ -32,7 +32,13 @@ def build_router(name: str):
         from .router.llm import LLMRouter
 
         return LLMRouter()
-    raise ValueError(f"unknown router backend: {name!r} (use 'heuristic' or 'llm')")
+    if name == "openai":
+        from .router.openai_router import OpenAIRouter
+
+        return OpenAIRouter()
+    raise ValueError(
+        f"unknown router backend: {name!r} (use 'heuristic', 'llm', or 'openai')"
+    )
 
 
 class AppContext:
