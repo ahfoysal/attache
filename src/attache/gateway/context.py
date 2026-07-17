@@ -36,8 +36,13 @@ def build_router(name: str):
         from .router.openai_router import OpenAIRouter
 
         return OpenAIRouter()
+    if name == "claude":
+        from .router.claude_cli_router import ClaudeCliRouter
+
+        return ClaudeCliRouter()
     raise ValueError(
-        f"unknown router backend: {name!r} (use 'heuristic', 'llm', or 'openai')"
+        f"unknown router backend: {name!r} "
+        "(use 'heuristic', 'claude', 'openai', or 'llm')"
     )
 
 

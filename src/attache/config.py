@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     router_model: str = "claude-haiku-4-5"
     agent_model: str = "sonnet"
     openai_router_model: str = "gpt-4o-mini"
+    claude_router_model: str = "haiku"  # subscription router, via the CLI
 
     workspace_root: str = "~/.attache/workspaces"
     artifact_root: str = "~/.attache/artifacts"

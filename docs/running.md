@@ -81,12 +81,19 @@ uv run python scripts/smoke_agent.py    # runs one real, budget-capped task (~$0
 
 - `heuristic` (default) — keyword-based, free, no key. Recognises task verbs
   (research/find/build/fix…); plain chat gets a canned reply.
-- `llm` — the anthropic API (`ANTHROPIC_API_KEY`), for smart routing.
+- `claude` — smart routing on your **Claude subscription** via the CLI (no API
+  key, no cash — uses a little subscription allowance per turn). Understands
+  general chat and dispatches actionable requests to tasks. Set
+  `ATTACHE_ROUTER=claude`. This is the recommended smart router.
 - `openai` — an OpenAI model (`OPENAI_API_KEY` + `uv sync --extra openai`).
-  Cheap (fractions of a cent/turn); keeps Claude as the free agent. Set
-  `ATTACHE_ROUTER=openai`. Verify with `uv run python scripts/smoke_router.py`.
+  Real money (OpenAI API is not covered by a ChatGPT subscription), but cheap.
+  Verify with `uv run python scripts/smoke_router.py`.
+- `llm` — the anthropic API (`ANTHROPIC_API_KEY`); like `claude` but metered
+  per token instead of via the subscription.
 
-The agent stays Claude regardless — routing and reasoning are separate choices.
+If the smart router errors on a turn, the gateway falls back to the heuristic
+router so the turn still succeeds. The agent stays Claude regardless — routing
+and reasoning are separate choices.
 
 Note on cost: each agent task is its own SDK session with meaningful fixed
 overhead (~$0.20 even for a tiny task), so per-task budget caps matter.

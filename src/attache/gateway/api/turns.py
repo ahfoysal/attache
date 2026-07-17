@@ -6,14 +6,22 @@ plane and the app are two clients of this endpoint; neither knows about tasks.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from ... import OWNER_ID
 from ...config import settings
 from ..router import Decision, fastpath
+from ..router.heuristic import HeuristicRouter
 
+log = logging.getLogger("attache.turns")
 router = APIRouter()
+
+# Keyword fallback: if the smart router errors mid-turn, the assistant stays
+# usable instead of failing the turn.
+_fallback_router = HeuristicRouter()
 
 
 class TurnIn(BaseModel):
@@ -123,7 +131,11 @@ async def handle_turn(body: TurnIn, request: Request) -> dict:
     decision = fastpath(body.text)
     if decision is None:
         turn_ctx = await ctx.memory.recall_for_turn(body.text, ctx.engine)
-        decision = await ctx.router.route(body.text, turn_ctx)
+        try:
+            decision = await ctx.router.route(body.text, turn_ctx)
+        except Exception:
+            log.exception("router failed; falling back to heuristic")
+            decision = await _fallback_router.route(body.text, turn_ctx)
 
     result = await _dispatch(ctx, decision, convo, body.text)
     await _append_turn(ctx, convo["id"], "assistant", result["speak"],
