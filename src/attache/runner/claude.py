@@ -163,6 +163,7 @@ class ClaudeAgentRunner(AgentRunner):
             tid, settings.agent_model,
         )
 
+        budget = task.get("budget") or {}
         options = ClaudeAgentOptions(
             cwd=str(workspace),
             model=settings.agent_model,
@@ -170,6 +171,7 @@ class ClaudeAgentRunner(AgentRunner):
             permission_mode="default",
             can_use_tool=self._permission_callback(task),
             mcp_servers={"taskboard": self._taskboard_server(tid)},
+            max_budget_usd=budget.get("max_usd"),
         )
 
         final_text: list[str] = []

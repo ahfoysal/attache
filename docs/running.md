@@ -56,19 +56,32 @@ Spins up a throwaway `attache_test` database and drives the seam end to end.
 
 ## Switching on the real agent
 
-Set `ANTHROPIC_API_KEY`, install the extra, and flip the backends:
+The Claude agent backend runs on the Claude Agent SDK, which drives the
+installed `claude` CLI — so if you're already signed in to Claude Code, **no API
+key is needed**:
 
 ```sh
 uv sync --extra claude
-export ANTHROPIC_API_KEY=sk-ant-...
 # in .env:
 ATTACHE_AGENT=claude
-ATTACHE_ROUTER=llm
 ```
 
-Now `create_task` routes through a fast model and tasks run on a real Claude
-Agent SDK session, with the policy tiers enforced on every tool call. The
-scripted/heuristic backends stay available for offline development and tests.
+Now tasks run on a real Claude Agent SDK session: the agent reports through the
+`taskboard` MCP tools and every tool call passes the policy tiers. Verified with
+a live task — the agent researched, wrote a report, and completed with a spoken
+summary (session + cost recorded in `agent_sessions`).
+
+Smoke-test it directly:
+
+```sh
+uv run python scripts/smoke_agent.py    # runs one real, budget-capped task (~$0.20)
+```
+
+The **LLM router** (`ATTACHE_ROUTER=llm`) is separate: it uses the anthropic API
+and does need `ANTHROPIC_API_KEY`. The heuristic router works without one.
+
+Note on cost: each agent task is its own SDK session with meaningful fixed
+overhead (~$0.20 even for a tiny task), so per-task budget caps matter.
 
 ## API surface (Phase 0)
 

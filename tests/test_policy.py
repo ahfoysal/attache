@@ -43,3 +43,8 @@ def test_unknown_shell_defaults_to_workspace_tier():
 
 def test_unknown_tool_defaults_to_consent():
     assert pe.evaluate("SomeNewTool", {}).tier == "T2"
+
+
+def test_taskboard_tools_always_allowed():
+    v = pe.evaluate("mcp__taskboard__complete", {"spoken_summary": "x"})
+    assert v.tier == "T0" and v.allowed is True

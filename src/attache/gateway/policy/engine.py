@@ -41,6 +41,9 @@ class PolicyEngine:
         return _mk(rules.DEFAULT_COMMAND_TIER, rules.DEFAULT_COMMAND_RULE)
 
     def evaluate(self, tool: str, tool_input: dict, task: dict | None = None) -> Verdict:
+        # Attaché's own control channel — the agent reports through it, always allowed.
+        if tool.startswith("mcp__taskboard__"):
+            return _mk("T0", "taskboard")
         if tool in rules.READONLY_TOOLS:
             return _mk("T0", f"readonly-tool:{tool}")
         if tool in rules.EDIT_TOOLS:

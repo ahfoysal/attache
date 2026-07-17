@@ -21,8 +21,11 @@ class Settings(BaseSettings):
     agent: str = "scripted"       # scripted | claude
     router: str = "heuristic"     # heuristic | llm
 
+    # agent_model drives the Agent SDK via the claude CLI (aliases resolve to
+    # the latest; verified with "haiku"). router_model is used only by the
+    # anthropic API path, which needs an exact id.
     router_model: str = "claude-haiku-4-5"
-    agent_model: str = "claude-sonnet-5"
+    agent_model: str = "sonnet"
 
     workspace_root: str = "~/.attache/workspaces"
     artifact_root: str = "~/.attache/artifacts"
