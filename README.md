@@ -2,7 +2,10 @@
 
 Voice assistant that runs real work through coding agents.
 
-Status: **beta planning**. No code yet. Docs change often.
+Status: **Phase 0 building**. The backend seam works end to end (typed request
+→ durable task → background agent → spoken summary + report), offline with no
+API key. See [docs/running.md](docs/running.md). The React Native app and voice
+layer (Phase 1) are next.
 
 ## Problem
 
@@ -26,8 +29,8 @@ MVP = a React Native app and nothing else. No desktop client, no wake word, no s
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Text-only proof: request → task → agent → notification | planning |
-| 1 | Mobile MVP: app, push-to-talk, one agent, approvals | planning |
+| 0 | Text-only proof: request → task → agent → notification | **seam working** |
+| 1 | Mobile MVP: app, push-to-talk, one agent, approvals | next |
 | 2 | Remote machines over SSH | later |
 | 3 | Durable memory | later |
 | 4 | More agent runtimes, parallel tasks | later |

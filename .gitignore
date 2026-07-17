@@ -1,2 +1,12 @@
 .omc/
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Local config + runtime data (values, workspaces, artifacts)
+.env
+.attache/

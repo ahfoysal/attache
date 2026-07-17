@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Attaché — console</title>
+<style>
+  :root {
+    --bg:#faf9f6; --card:#fff; --ink:#20292a; --soft:#5c6b69; --line:#e5e4dc;
+    --accent:#0e7c6b; --accent-soft:#e3efeb;
+    --run:#8a5a00; --run-bg:#f5ebd6; --done:#2e7d46; --done-bg:#e4f1e6;
+    --fail:#a63d36; --fail-bg:#f6e3e0; --wait:#5d4fa0; --wait-bg:#e9e5f5;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#101716; --card:#17201f; --ink:#dee7e4; --soft:#92a5a0; --line:#253230;
+      --accent:#56c4b0; --accent-soft:#17302b;
+      --run:#e2ac4e; --run-bg:#332812; --done:#7ccb92; --done-bg:#17301e;
+      --fail:#e08a80; --fail-bg:#361b18; --wait:#ac9ee8; --wait-bg:#241f3a; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  header{padding:1rem 1.25rem;border-bottom:1px solid var(--line);display:flex;
+    align-items:baseline;gap:.6rem}
+  header h1{font-size:1.1rem;margin:0;letter-spacing:-.01em}
+  header .tag{font-size:.72rem;color:var(--soft)}
+  main{max-width:1000px;margin:0 auto;padding:1.25rem;display:grid;
+    grid-template-columns:1fr 1fr;gap:1.25rem}
+  @media (max-width:760px){main{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:1rem;min-height:120px}
+  .card h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--soft);margin:0 0 .75rem}
+  form{display:flex;gap:.5rem;margin-bottom:1rem}
+  input[type=text]{flex:1;padding:.6rem .75rem;border:1px solid var(--line);
+    border-radius:8px;background:var(--bg);color:var(--ink);font-size:15px}
+  button{padding:.6rem 1rem;border:none;border-radius:8px;background:var(--accent);
+    color:#fff;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:wait}
+  .reply{background:var(--accent-soft);border-radius:8px;padding:.7rem .85rem;
+    margin-bottom:1rem;min-height:1.2rem}
+  .transcript div{padding:.35rem 0;border-bottom:1px solid var(--line)}
+  .transcript .u{color:var(--soft)} .transcript .a{color:var(--ink)}
+  .task{border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem;margin-bottom:.6rem;cursor:pointer}
+  .task:hover{border-color:var(--accent)}
+  .task .t{font-weight:600}
+  .pill{display:inline-block;font-size:.68rem;font-weight:700;padding:.1rem .5rem;
+    border-radius:999px;margin-left:.4rem;vertical-align:1px}
+  .s-running,.s-created,.s-planning{color:var(--run);background:var(--run-bg)}
+  .s-completed{color:var(--done);background:var(--done-bg)}
+  .s-failed,.s-cancelled{color:var(--fail);background:var(--fail-bg)}
+  .s-waiting_approval,.s-blocked,.s-paused{color:var(--wait);background:var(--wait-bg)}
+  .task .sum{color:var(--soft);font-size:.86rem;margin-top:.3rem}
+  .events{font:12px/1.5 ui-monospace,Menlo,monospace;max-height:260px;overflow:auto}
+  .events div{padding:.15rem 0;color:var(--soft)}
+  .events b{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Attaché</h1><span class="tag" id="tag">console · phase 0</span>
+</header>
+<main>
+  <section>
+    <div class="card">
+      <h2>Talk to it</h2>
+      <form id="turn-form">
+        <input type="text" id="turn-input" placeholder="e.g. find a good open-source TypeScript project I could contribute to" autocomplete="off" />
+        <button type="submit" id="send">Send</button>
+      </form>
+      <div class="reply" id="reply">Type a request and press Send.</div>
+      <div class="transcript" id="transcript"></div>
+    </div>
+  </section>
+  <section>
+    <div class="card">
+      <h2>Tasks</h2>
+      <div id="tasks"></div>
+    </div>
+    <div class="card" style="margin-top:1.25rem">
+      <h2>Live events</h2>
+      <div class="events" id="events"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let convo = null;
+
+async function health(){
+  try { const h = await (await fetch('/healthz')).json();
+    $('#tag').textContent = `console · phase 0 · agent=${h.agent} router=${h.router}`; } catch {}
+}
+
+async function refreshTasks(){
+  try{
+    const {tasks} = await (await fetch('/v1/tasks')).json();
+    $('#tasks').innerHTML = tasks.length ? tasks.map(t => `
+      <div class="task" onclick="viewTask('${t.id}')">
+        <span class="t">${esc(t.title)}</span>
+        <span class="pill s-${t.state}">${t.state}</span>
+        ${t.spoken_summary ? `<div class="sum">${esc(t.spoken_summary)}</div>` : ''}
+      </div>`).join('') : '<div class="sum" style="color:var(--soft)">No tasks yet.</div>';
+  }catch(e){}
+}
+
+async function viewTask(id){
+  const d = await (await fetch('/v1/tasks/'+id)).json();
+  const evs = d.events.map(e => `${e.type}: ${JSON.stringify(e.payload)}`).join('\n');
+  alert(`${d.task.title} [${d.task.state}]\n\n${d.task.spoken_summary||''}\n\n--- events ---\n${evs}`);
+}
+
+function logEvent(ev){
+  const box = $('#events');
+  const line = document.createElement('div');
+  const p = ev.payload || {};
+  const detail = p.msg || p.to || p.name || p.spoken || '';
+  line.innerHTML = `<b>${ev.type}</b> ${esc(String(detail))}`;
+  box.prepend(line);
+  if (['state_change','notification','artifact'].includes(ev.type)) refreshTasks();
+}
+
+function connectWS(){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/v1/events`);
+  ws.onmessage = e => logEvent(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connectWS, 1500);
+}
+
+$('#turn-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = $('#turn-input');
+  const text = input.value.trim();
+  if(!text) return;
+  $('#send').disabled = true;
+  addTurn('u', text); input.value='';
+  try{
+    const r = await (await fetch('/v1/turns',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({text, conversation_id:convo})})).json();
+    convo = r.conversation_id;
+    $('#reply').textContent = r.speak;
+    addTurn('a', r.speak);
+    refreshTasks();
+  }catch(err){ $('#reply').textContent = 'Error: '+err; }
+  $('#send').disabled = false; input.focus();
+});
+
+function addTurn(role, text){
+  const d = document.createElement('div');
+  d.className = role;
+  d.textContent = (role==='u'?'You: ':'Attaché: ')+text;
+  $('#transcript').prepend(d);
+}
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+health(); refreshTasks(); connectWS();
+setInterval(refreshTasks, 4000);
+</script>
+</body>
+</html>
