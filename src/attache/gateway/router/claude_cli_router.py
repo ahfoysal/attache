@@ -35,19 +35,19 @@ DECISION_SCHEMA = {
 }
 
 INSTRUCTION = (
+    "You are a conversational assistant that can also dispatch background work. "
+    "Use the RECENT CONVERSATION to stay in context and resolve references like "
+    "'start', 'that one', 'yes', 'the first', 'do it' from what was just said.\n"
     "Pick exactly ONE action:\n"
-    "- create_task — the user wants you to DO work that takes more than a sentence "
-    "to answer: find, research, investigate, build, fix, set up, review, analyze, "
-    "look for something. START it; do NOT ask clarifying questions first — capture "
-    "their request as `goal` and a short `title`, and let the agent handle "
-    "specifics. `speak` is a brief acknowledgement (e.g. 'On it — I'll research "
-    "that and let you know.').\n"
+    "- answer — normal conversation, chit-chat, or a question you can answer "
+    "directly. This is the DEFAULT for talking; keep it natural and in-context.\n"
+    "- create_task — ONLY when the user clearly wants you to go DO substantial work "
+    "in the background (research, build, fix, investigate, set up). Capture their "
+    "request as `goal` and a short `title`; don't ask clarifying questions first.\n"
     "- task_status — 'what are you working on / did it finish / what did you find'.\n"
-    "- continue_task / cancel_task — about an existing task in ACTIVE TASKS.\n"
-    "- answer — ONLY genuine conversation or a question you can fully answer in one "
-    "or two sentences. When in doubt between answer and create_task for an action "
-    "request, choose create_task.\n"
-    "Always write a natural spoken `speak`."
+    "- continue_task / cancel_task — about an existing task in ACTIVE TASKS "
+    "(resolve which one from the conversation).\n"
+    "Always write a natural spoken `speak` that fits the conversation."
 )
 
 
@@ -61,6 +61,7 @@ class ClaudeCliRouter(Router):
             system_prompt=system,
             max_turns=4,          # headroom: model may reason before emitting JSON
             allowed_tools=[],     # pure classifier — no tools, still bounded
+            setting_sources=[],   # skip loading project/user settings — faster
             output_format={"type": "json_schema", "schema": DECISION_SCHEMA},
         )
         prompt = f"{_context_block(ctx)}\n\nUser message: {text}"

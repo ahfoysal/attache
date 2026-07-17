@@ -42,6 +42,9 @@
   #mic{background:var(--mic-bg);color:var(--mic);font-size:1.1rem;padding:.6rem .8rem}
   #mic.on{background:var(--mic);color:#fff;animation:pulse 1s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .sessionbtn{width:100%;margin-bottom:1rem;background:var(--card);color:var(--accent);
+    border:1px solid var(--accent);font-weight:600}
+  .sessionbtn.on{background:var(--mic);color:#fff;border-color:var(--mic);animation:pulse 1.6s infinite}
   .reply{background:var(--accent-soft);border-radius:8px;padding:.7rem .85rem;
     margin-bottom:1rem;min-height:1.2rem}
   .transcript div{padding:.35rem 0;border-bottom:1px solid var(--line)}
@@ -78,6 +81,7 @@
         <button type="submit" id="send">Send</button>
       </form>
       <div class="hint" id="mic-hint"></div>
+      <button type="button" id="session" class="sessionbtn">🎙️ Start voice session (hands-free)</button>
       <div class="reply" id="reply">Type a request, or press the mic and speak.</div>
       <div class="transcript" id="transcript"></div>
     </div>
@@ -96,6 +100,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let convo = null;
+let busy = false;
 
 async function health(){
   try { const h = await (await fetch('/healthz')).json();
@@ -103,46 +108,73 @@ async function health(){
 }
 
 // ---- Speech OUT (browser TTS, free, no key) ----
-function speak(text){
-  if (!$('#voice-out').checked || !window.speechSynthesis || !text) return;
-  window.speechSynthesis.cancel();               // barge-in: drop anything mid-sentence
+let lastSpoken = '', lastSpokenAt = 0;
+function speak(text, onDone){
+  const done = () => { if (onDone) onDone(); };
+  if (!$('#voice-out').checked || !window.speechSynthesis || !text){ done(); return; }
+  const now = Date.now();
+  if (text === lastSpoken && now - lastSpokenAt < 5000){ done(); return; }  // guard: no double-talk
+  lastSpoken = text; lastSpokenAt = now;
+  window.speechSynthesis.cancel();               // drop anything mid-sentence
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US'; u.rate = 1.02;
+  u.onend = done; u.onerror = done;
   window.speechSynthesis.speak(u);
 }
 
 // ---- Speech IN (browser STT, free, no key) ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog = null, listening = false;
+const FATAL = ['not-allowed','service-not-allowed','audio-capture'];
+let recog = null, listening = false, gotFinal = false, voiceSession = false, lastError = '';
 if (SR){
   recog = new SR();
   recog.lang = 'en-US'; recog.interimResults = true; recog.continuous = false;
   recog.onresult = e => {
-    let txt = '';
-    for (const r of e.results) txt += r[0].transcript;
+    const txt = Array.from(e.results).map(r => r[0].transcript).join('');
     $('#turn-input').value = txt;
-    if (e.results[e.results.length-1].isFinal){ stopMic(); submitTurn(); }
+    if (e.results[e.results.length-1].isFinal){ gotFinal = true; stopMic(); submitTurn(); }
   };
-  recog.onerror = e => { $('#mic-hint').textContent = 'mic: ' + e.error; stopMic(); };
-  recog.onend = () => stopMic();
+  recog.onerror = e => {
+    lastError = e.error;
+    if (FATAL.includes(e.error)){ voiceSession = false; sessionUI(); $('#mic-hint').textContent = 'mic blocked: ' + e.error; }
+  };
+  recog.onend = () => {
+    listening = false; $('#mic').classList.remove('on');
+    // hands-free: if the session is on and this was just silence, keep listening
+    if (voiceSession && !gotFinal && !busy && !FATAL.includes(lastError)){
+      setTimeout(() => { if (voiceSession && !busy && !listening) startMic(); }, 400);
+    }
+  };
 } else {
-  $('#mic').disabled = true;
+  $('#mic').disabled = true; $('#session').disabled = true;
   $('#mic-hint').textContent = 'This browser has no speech recognition — try Chrome or Safari. Typing works everywhere.';
 }
 function startMic(){
   if (!recog || listening) return;
-  if (window.speechSynthesis) window.speechSynthesis.cancel();  // stop it talking so it can listen
-  listening = true; $('#mic').classList.add('on'); $('#mic-hint').textContent = 'Listening… speak, then pause.';
+  gotFinal = false; lastError = '';
+  if (window.speechSynthesis) window.speechSynthesis.cancel();  // don't talk over listening
+  listening = true; $('#mic').classList.add('on');
+  $('#mic-hint').textContent = voiceSession ? 'Voice session — listening…' : 'Listening… speak, then pause.';
   try { recog.start(); } catch(_){}
 }
 function stopMic(){ listening = false; $('#mic').classList.remove('on'); if(recog) try{recog.stop()}catch(_){} }
 $('#mic').onclick = () => listening ? stopMic() : startMic();
 
+// ---- Continuous voice session (hands-free, like a call) ----
+function sessionUI(){
+  $('#session').textContent = voiceSession ? '⏹ Stop voice session' : '🎙️ Start voice session (hands-free)';
+  $('#session').classList.toggle('on', voiceSession);
+}
+function startSession(){ if (!recog) return; voiceSession = true; $('#voice-out').checked = true; sessionUI(); startMic(); }
+function stopSession(){ voiceSession = false; stopMic(); if (window.speechSynthesis) window.speechSynthesis.cancel(); sessionUI(); $('#mic-hint').textContent = ''; }
+$('#session').onclick = () => voiceSession ? stopSession() : startSession();
+
 // ---- Turns ----
 async function submitTurn(){
   const input = $('#turn-input');
   const text = input.value.trim();
-  if(!text) return;
+  if(!text || busy) return;                  // guard: no double submit / double talk
+  busy = true;
   $('#send').disabled = true;
   addTurn('u', text); input.value='';
   $('#reply').textContent = '…';   // immediate feedback while routing
@@ -152,9 +184,13 @@ async function submitTurn(){
     convo = r.conversation_id;
     $('#reply').textContent = r.speak;
     addTurn('a', r.speak);
-    speak(r.speak);
+    busy = false;
+    speak(r.speak, () => { if (voiceSession) startMic(); });  // hands-free: listen again after speaking
     refreshTasks();
-  }catch(err){ $('#reply').textContent = 'Error: '+err; }
+  }catch(err){
+    $('#reply').textContent = 'Error: '+err; busy = false;
+    if (voiceSession) setTimeout(startMic, 500);
+  }
   $('#send').disabled = false; input.focus();
 }
 $('#turn-form').addEventListener('submit', e => { e.preventDefault(); submitTurn(); });
@@ -213,7 +249,8 @@ function logEvent(ev){
     if (el) el.textContent = '⚙️ ' + activity[ev.task_id];
   }
   if (ev.type === 'notification' && p.spoken){
-    $('#reply').textContent = p.spoken; addTurn('a', p.spoken); speak(p.spoken);
+    $('#reply').textContent = p.spoken; addTurn('a', p.spoken);
+    speak(p.spoken, () => { if (voiceSession && !busy && !listening) startMic(); });
   }
   if (['state_change','notification','artifact'].includes(ev.type)) refreshTasks();
 }

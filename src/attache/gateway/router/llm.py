@@ -19,6 +19,13 @@ memory below to resolve references like "that task" or "the same repo"."""
 
 def _context_block(ctx) -> str:
     lines = []
+    recent = getattr(ctx, "recent_turns", []) or []
+    if recent:
+        lines.append("RECENT CONVERSATION (oldest to newest):")
+        for t in recent[-10:]:
+            who = "User" if t.get("role") == "user" else "You (Attaché)"
+            lines.append(f"{who}: {t.get('text', '')}")
+        lines.append("")
     shortlist = getattr(ctx, "task_shortlist", []) or []
     if shortlist:
         lines.append("ACTIVE TASKS:")

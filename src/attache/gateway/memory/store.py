@@ -8,7 +8,7 @@ here (`recall_for_turn`) stays the same when that lands.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ... import OWNER_ID
 from ...db import Database
@@ -20,6 +20,7 @@ class TurnContext:
     task_shortlist: list[dict]
     memory_block: list[dict]
     preferences: dict
+    recent_turns: list[dict] = field(default_factory=list)
 
 
 class MemoryStore:
@@ -56,9 +57,20 @@ class MemoryStore:
             limit,
         )
 
-    async def recall_for_turn(self, text: str, engine: TaskEngine) -> TurnContext:
+    async def recent_turns(self, convo_id: str, limit: int = 10) -> list[dict]:
+        rows = await self.db.fetch(
+            "select role, text from turns where conversation_id = %s "
+            "order by created_at desc limit %s",
+            convo_id, limit,
+        )
+        return list(reversed(rows))
+
+    async def recall_for_turn(
+        self, text: str, engine: TaskEngine, convo_id: str | None = None
+    ) -> TurnContext:
         return TurnContext(
             task_shortlist=await engine.list_active(),
             memory_block=await self.recent_facts(),
             preferences=await self.preferences(),
+            recent_turns=await self.recent_turns(convo_id) if convo_id else [],
         )

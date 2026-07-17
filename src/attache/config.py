@@ -26,10 +26,10 @@ class Settings(BaseSettings):
     agent: str = "scripted"       # scripted | claude
     router: str = "heuristic"     # heuristic | claude | openai | llm
 
-    # Instant keyword routing for obvious task/status/cancel requests, so only
-    # genuine conversation pays the smart router's latency. Set false to send
-    # every turn through the smart router.
-    fast_route: bool = True
+    # Instant keyword routing for obvious task requests. Off by default: let the
+    # assistant decide intent from context instead of matching verbs. Turn on
+    # for lower latency at the cost of the assistant not deciding borderline cases.
+    fast_route: bool = False
 
     # agent_model drives the Agent SDK via the claude CLI (aliases resolve to
     # the latest; verified with "haiku"). router_model is used only by the
